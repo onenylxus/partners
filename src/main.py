@@ -29,7 +29,7 @@ def start_all_containers() -> bool:
     result = True
     containers = dockerClient.containers.list(all=True)
     for container in containers:
-        result = result and container.start()
+        result = result and start_container(container.id)
     return result
 
 
@@ -45,7 +45,7 @@ def stop_all_containers() -> bool:
     result = True
     containers = dockerClient.containers.list(all=True)
     for container in containers:
-        result = result and container.stop()
+        result = result and stop_container(container.id)
     return result
 
 
@@ -61,7 +61,7 @@ def remove_all_containers() -> bool:
     result = True
     containers = dockerClient.containers.list(all=True)
     for container in containers:
-        result = result and container.remove()
+        result = result and remove_container(container.id)
     return result
 
 

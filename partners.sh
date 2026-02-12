@@ -1,8 +1,26 @@
 #!/bin/bash
 
-# Check if Python 3 is installed, install if missing
-if ! which python3 &>/dev/null; then
-  echo "Installing Python..."
+# Parse flags
+FORCE=0
+while getopts ":f" opt; do
+  case $opt in
+    f)
+      FORCE=1
+      ;;
+    \?)
+      echo "Unknown option: -$OPTARG" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# Check if Python 3 is installed, install (or force-install) if requested
+if [ "$FORCE" -eq 1 ] || ! which python3 &> /dev/null; then
+  if [ "$FORCE" -eq 1 ]; then
+    echo "Force flag detected: reinstalling Python packages..."
+  else
+    echo "Installing Python..."
+  fi
   sudo apt-get update
   sudo apt-get install -y python3 python3-full python3-pip python3-dev
   echo "Python installed successfully"
@@ -10,9 +28,13 @@ else
   echo "Python is already installed"
 fi
 
-# Check if Docker is installed, install if missing
-if ! which docker &>/dev/null; then
-  echo "Installing Docker..."
+# Check if Docker is installed, install (or force-install) if requested
+if [ "$FORCE" -eq 1 ] || ! which docker &> /dev/null; then
+  if [ "$FORCE" -eq 1 ]; then
+    echo "Force flag detected: reinstalling Docker..."
+  else
+    echo "Installing Docker..."
+  fi
   sudo apt-get update
   sudo apt-get install -y ca-certificates curl
   sudo install -m 0755 -d /etc/apt/keyrings
@@ -63,9 +85,8 @@ fi
 
 # Install Python dependencies
 echo "Installing Python dependencies..."
-pip3 install -r requirements_main.txt
+./.venv/bin/pip3 install -r requirements_main.txt
 
-# Activate virtual environment and run main application
-echo "Activating virtual environment and starting application..."
-source .venv/bin/activate
-python3 src/main.py
+# Run main application with virtual environment's Python interpreter
+echo "Starting application..."
+./.venv/bin/python3 src/main.py
