@@ -2,6 +2,7 @@ FROM ubuntu:latest
 
 WORKDIR /app
 COPY requirements_container.txt requirements.txt
+COPY src/container.py /app/container.py
 
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends \
@@ -13,3 +14,5 @@ RUN python3 -m venv .venv
 
 RUN .venv/bin/pip install --upgrade pip
 RUN .venv/bin/pip install --no-cache-dir -r requirements.txt
+
+ENTRYPOINT [ "python3", "/app/container.py" ]

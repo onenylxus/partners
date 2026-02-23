@@ -13,7 +13,14 @@ def list_containers() -> List[Container]:
 
 def create_container() -> bool:
     """Create a new container from the partners-agent image."""
-    container = dockerClient.containers.create("partners-agent:latest")
+    # Create the container with stdin open and a TTY so the process
+    # keeps running even when not attached. Return the container object.
+    container = dockerClient.containers.create(
+        "partners-agent:latest",
+        stdin_open=True,
+        tty=True,
+        detach=True,
+    )
     return True
 
 
@@ -29,6 +36,8 @@ def start_all_containers() -> bool:
     result = True
     containers = dockerClient.containers.list(all=True)
     for container in containers:
+        if not container.id:
+            continue
         result = result and start_container(container.id)
     return result
 
@@ -45,6 +54,8 @@ def stop_all_containers() -> bool:
     result = True
     containers = dockerClient.containers.list(all=True)
     for container in containers:
+        if not container.id:
+            continue
         result = result and stop_container(container.id)
     return result
 
@@ -61,5 +72,7 @@ def remove_all_containers() -> bool:
     result = True
     containers = dockerClient.containers.list(all=True)
     for container in containers:
+        if not container.id:
+            continue
         result = result and remove_container(container.id)
     return result
