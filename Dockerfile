@@ -1,8 +1,9 @@
 FROM ubuntu:latest
 
 WORKDIR /app
+COPY .env .env
 COPY requirements_container.txt requirements.txt
-COPY src/container.py /app/container.py
+COPY src/container.py container.py
 
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends \

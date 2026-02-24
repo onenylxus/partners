@@ -1,13 +1,13 @@
 #!/bin/bash
 
 # Check if Python 3 is installed
-if ! which python3 &> /dev/null; then
+if ! which python3 > /dev/null; then
   echo "Error: Python 3 is not installed"
   exit 1
 fi
 
 # Check if Docker is installed
-if ! which docker &> /dev/null; then
+if ! which docker > /dev/null; then
   echo "Error: Docker is not installed"
   exit 1
 fi
@@ -16,8 +16,8 @@ fi
 echo "Starting Docker service..."
 sudo systemctl start docker
 
-# Build Docker image if it doesn't exist
-if [ -z "$(docker images -q partners-agent:latest)" ]; then
+# Build Docker image if in development mode or if the image doesn't exist
+if ( [ -f ".env" ] && grep -E '^DEV=1($|\s|#)' .env > /dev/null ) || [ -z "$(docker images -q partners-agent:latest)" ]; then
   echo "Building Docker image 'partners-agent'..."
   sudo docker build -t partners-agent .
 fi
