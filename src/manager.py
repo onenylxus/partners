@@ -1,8 +1,8 @@
 from typing import List
+from docker import DockerClient
 from docker.models.containers import Container
-import docker
 
-dockerClient: docker.DockerClient = docker.DockerClient()
+dockerClient: DockerClient = DockerClient()
 
 
 def list_containers() -> List[Container]:
@@ -20,6 +20,7 @@ def create_container() -> bool:
         stdin_open=True,
         tty=True,
         detach=True,
+        ports={"8080/tcp": None},
     )
     return True
 

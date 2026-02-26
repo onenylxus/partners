@@ -16,4 +16,6 @@ RUN python3 -m venv .venv
 RUN .venv/bin/pip install --upgrade pip
 RUN .venv/bin/pip install --no-cache-dir -r requirements.txt
 
-ENTRYPOINT [ "python3", "/app/container.py" ]
+EXPOSE 8080
+
+ENTRYPOINT [ "/app/.venv/bin/python", "/app/container.py" ]

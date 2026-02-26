@@ -1,5 +1,6 @@
 from typing import Any
 import shlex
+import requests
 
 
 def format_exec_result(result: Any) -> str:
@@ -30,6 +31,24 @@ def interactive_console(target) -> None:
         print("No container available to run the echo script.")
         return
 
+    # Ensure we have up-to-date container information and a mapped host port
+    host_port = None
+    try:
+        # refresh attributes
+        target.reload()
+        ports = getattr(target, "attrs", {}).get("NetworkSettings", {}).get("Ports", {})
+        mapping = ports.get("8080/tcp")
+        if mapping and isinstance(mapping, list) and mapping[0].get("HostPort"):
+            host_port = mapping[0]["HostPort"]
+    except Exception:
+        host_port = None
+
+    if not host_port:
+        print(
+            "Target container has no 8080/tcp host port mapped. Ensure manager publishes the port."
+        )
+        return
+
     try:
         while True:
             try:
@@ -47,17 +66,20 @@ def interactive_console(target) -> None:
                 print(f"Unknown command: /{cmd}")
                 continue
 
-            quoted = shlex.quote(user_input + "\n")
-            cmd = ["sh", "-c", f"printf {quoted} | python3 /app/container.py"]
-
             try:
-                result = target.exec_run(cmd)
+                resp = requests.post(
+                    f"http://localhost:{host_port}/exec",
+                    json={"input": user_input},
+                    timeout=5,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                output = data.get("output", "")
             except Exception as exc:
-                print(f"exec_run failed: {exc}")
+                print(f"HTTP request failed: {exc}")
                 break
 
-            output = format_exec_result(result)
-            print(output, end="")
+            print(output)
 
     except KeyboardInterrupt:
         print("\nInterrupted by user")
