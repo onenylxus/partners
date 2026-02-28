@@ -1,6 +1,7 @@
 from typing import Any
 import shlex
 import requests
+from command import handle_command
 
 
 def format_exec_result(result: Any) -> str:
@@ -60,11 +61,11 @@ def interactive_console(target) -> None:
 
             # commands start with '/'
             if user_input.startswith("/"):
-                cmd = user_input[1:].strip()
-                if cmd == "exit":
+                handled, should_exit = handle_command(user_input)
+                if handled and should_exit:
                     return
-                print(f"Unknown command: /{cmd}")
-                continue
+                if handled:
+                    continue
 
             try:
                 resp = requests.post(
