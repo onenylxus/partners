@@ -98,7 +98,7 @@ def interactive_console(target) -> None:
                 resp = requests.post(
                     f"http://localhost:{host_port}/exec",
                     json={"input": user_input},
-                    timeout=5,
+                    timeout=60,
                 )
                 resp.raise_for_status()
                 data = resp.json()
