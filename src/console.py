@@ -1,7 +1,26 @@
 from typing import Any
-import shlex
 import requests
 from command import handle_command
+from rich.console import Console
+
+# Rich console for colored prompts and output
+console = Console()
+
+
+def print_tagged(tag: str, style: str, message: str) -> None:
+    """Print tagged output and indent multiline content from the second line."""
+    text = "" if message is None else str(message)
+    lines = text.splitlines()
+
+    if not lines:
+        formatted = ""
+    elif len(lines) == 1:
+        formatted = lines[0]
+    else:
+        indent = " " * (len(tag) + 1)  # +1 for the space after the tag
+        formatted = lines[0] + "\n" + "\n".join(f"{indent}{line}" for line in lines[1:])
+
+    console.print(f"[{style}]{tag}[/{style}] {formatted}", highlight=False)
 
 
 def format_exec_result(result: Any) -> str:
@@ -29,7 +48,11 @@ def interactive_console(target) -> None:
     If `target` is falsy the function will print an explanatory message and return.
     """
     if not target:
-        print("No container available to run the echo script.")
+        print_tagged(
+            "system",
+            "bold yellow",
+            "No container available to run the echo script.",
+        )
         return
 
     # Ensure we have up-to-date container information and a mapped host port
@@ -45,15 +68,17 @@ def interactive_console(target) -> None:
         host_port = None
 
     if not host_port:
-        print(
-            "Target container has no 8080/tcp host port mapped. Ensure manager publishes the port."
+        print_tagged(
+            "system",
+            "bold yellow",
+            "Target container has no 8080/tcp host port mapped. Ensure manager publishes the port.",
         )
         return
 
     try:
         while True:
             try:
-                user_input = input("input> ")
+                user_input = console.input("[bold blue]user[/bold blue] ")
             except EOFError:
                 break
             if not user_input:
@@ -61,10 +86,12 @@ def interactive_console(target) -> None:
 
             # commands start with '/'
             if user_input.startswith("/"):
-                handled, should_exit = handle_command(user_input)
-                if handled and should_exit:
-                    return
+                handled, should_exit, command_message = handle_command(user_input)
                 if handled:
+                    if command_message:
+                        print_tagged("system", "bold cyan", command_message.rstrip())
+                    if should_exit:
+                        return
                     continue
 
             try:
@@ -77,10 +104,14 @@ def interactive_console(target) -> None:
                 data = resp.json()
                 output = data.get("output", "")
             except Exception as exc:
-                print(f"HTTP request failed: {exc}")
+                print_tagged("system", "bold yellow", f"HTTP request failed: {exc}")
                 break
 
-            print(output)
+            # Prefix container output with a styled label. Preserve multiline output.
+            if output is None:
+                output = ""
+            # Print label + content
+            print_tagged("container", "bold magenta", output)
 
     except KeyboardInterrupt:
-        print("\nInterrupted by user")
+        print_tagged("system", "bold yellow", "Interrupted by user")

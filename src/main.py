@@ -25,9 +25,6 @@ def _choose_target_container() -> Optional[object]:
 
 if __name__ == "__main__":
     create_container()
-    containers = list_containers()
-    print(containers)
-
     start_all_containers()
 
     target = _choose_target_container()
