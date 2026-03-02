@@ -45,4 +45,5 @@ echo "Installing Python dependencies..."
 
 # Run main application with virtual environment's Python interpreter
 echo "Starting application..."
+clear
 ./.venv/bin/python3 src/main.py
