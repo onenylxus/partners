@@ -1,5 +1,5 @@
 from typing import Optional
-from console import interactive_console
+from console import interactive_console, print_header
 
 from manager import (
     create_container,
@@ -26,6 +26,8 @@ def _choose_target_container() -> Optional[object]:
 if __name__ == "__main__":
     create_container()
     start_all_containers()
+
+    print_header("Partners", "0.1.0")
 
     target = _choose_target_container()
     interactive_console(target)
