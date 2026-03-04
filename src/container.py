@@ -13,15 +13,24 @@ class ExecRequest(BaseModel):
 
 def process_input(text: str) -> str:
     load_dotenv()
-    model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+    model = os.getenv("OPENAI_MODEL")
+    if not model:
+        return "OPENAI_MODEL not set"
+
     base_url = os.getenv("OPENAI_BASE_URL")
+    if not base_url:
+        return "OPENAI_BASE_URL not set"
+
     api_key = os.getenv("OPENAI_API_KEY")
     if not api_key:
         return "OPENAI_API_KEY not set"
 
     try:
-        client = OpenAI(api_key=api_key, base_url=base_url) if base_url else OpenAI(api_key=api_key)
-        resp = client.chat.completions.create(model=model, messages=[{"role": "user", "content": text}])
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        resp = client.chat.completions.create(
+            model=model, messages=[{"role": "user", "content": text}]
+        )
         # Try common access patterns for the response content
         try:
             return resp.choices[0].message.content

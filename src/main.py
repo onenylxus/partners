@@ -1,4 +1,6 @@
 from typing import Optional
+import json
+import os
 from console import interactive_console, print_header
 
 from manager import (
@@ -23,8 +25,29 @@ def _choose_target_container() -> Optional[object]:
     return containers[0] if containers else None
 
 
+def load_containers_config(path: str = "containers.json") -> list:
+    try:
+        with open(path, "r") as f:
+            data = json.load(f)
+        return data.get("containers", [])
+    except Exception:
+        return []
+
+
 if __name__ == "__main__":
-    create_container()
+    # Read configured containers and create each with its model
+    entries = load_containers_config(
+        os.environ.get("CONTAINERS_CONFIG", "containers.json")
+    )
+    if entries:
+        for entry in entries:
+            name = entry.get("name", "default")
+            model = entry.get("model", "")
+            create_container(name, model)
+    else:
+        # fallback to creating a single default container using env
+        create_container("default", "")
+
     start_all_containers()
 
     print_header("Partners", "0.1.0")

@@ -44,6 +44,5 @@ echo "Installing Python dependencies..."
 ./.venv/bin/pip3 install -r requirements_main.txt
 
 # Run main application with virtual environment's Python interpreter
-echo "Starting application..."
-clear
+echo -e "Starting application...\n"
 ./.venv/bin/python3 src/main.py

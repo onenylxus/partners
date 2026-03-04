@@ -1,0 +1,9 @@
+{
+	"version": 1,
+	"containers": [
+		{
+			"name": "(your container name)",
+			"model": "(default AI model)"
+		}
+	]
+}

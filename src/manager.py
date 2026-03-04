@@ -11,8 +11,10 @@ def list_containers() -> List[Container]:
     return containers
 
 
-def create_container() -> bool:
-    """Create a new container from the partners-agent image."""
+def create_container(name: str, model: str) -> bool:
+    """Create a new container from the partners-agent image with the
+    provided `name` and `model` passed as environment variables.
+    """
     # Create the container with stdin open and a TTY so the process
     # keeps running even when not attached. Return the container object.
     container = dockerClient.containers.create(
@@ -21,6 +23,8 @@ def create_container() -> bool:
         tty=True,
         detach=True,
         ports={"8080/tcp": None},
+        name=name,
+        environment={"OPENAI_MODEL": model, "CONTAINER_NAME": name},
     )
     return True
 
