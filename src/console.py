@@ -26,15 +26,8 @@ def print_tagged(tag: str, style: str, message: str) -> None:
 
 def print_header(app_name: str, version: str) -> None:
     """Print a simple application header with name and version."""
-    try:
-        header_text = f"[bold green]{app_name}[/bold green] [dim]v{version}[/dim]"
-        console.print(
-            Panel(header_text, border_style="green", expand=False, padding=(1, 4))
-        )
-    except Exception:
-        # Fallback to plain print if rich console fails for any reason
-        console.print(f"{app_name} {version}")
-    print()
+    # Single-line system message consistent with other system outputs
+    print_tagged("system", "bold cyan", f"{app_name} v{version}")
 
 
 def format_exec_result(result: Any) -> str:

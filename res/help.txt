@@ -1,3 +1,4 @@
 Available commands:
 /exit: Exit the interactive console
 /help: Show this help message
+/list: List all containers and their information
