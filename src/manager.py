@@ -15,6 +15,13 @@ def create_container(name: str, model: str) -> bool:
     """Create a new container from the partners-agent image with the
     provided `name` and `model` passed as environment variables.
     """
+    # Remove any existing container with the same name to avoid conflicts
+    try:
+        existing = dockerClient.containers.get(name)
+        existing.remove(force=True)
+    except Exception:
+        pass  # If not found, ignore
+
     # Create the container with stdin open and a TTY so the process
     # keeps running even when not attached. Return the container object.
     container = dockerClient.containers.create(

@@ -3,6 +3,7 @@ import requests
 from command import handle_command
 from rich.console import Console
 from rich.panel import Panel
+from manager import list_containers
 
 # Rich console for colored prompts and output
 console = Console()
@@ -49,18 +50,63 @@ def format_exec_result(result: Any) -> str:
     return "" if output is None else str(output)
 
 
-def interactive_console(target) -> None:
-    """Run an interactive loop that sends input to the container and prints output.
+def interactive_console() -> None:
+    """Run an interactive loop that sends input to a selected container and prints output.
 
-    If `target` is falsy the function will print an explanatory message and return.
+    Prompts the user to select a container by port.
     """
-    if not target:
+    containers = list_containers()
+    # Build list of containers with mapped 8080/tcp ports
+    available = []
+    for c in containers:
+        try:
+            c.reload()
+            ports = getattr(c, "attrs", {}).get("NetworkSettings", {}).get("Ports", {})
+            mapping = ports.get("8080/tcp")
+            if mapping and isinstance(mapping, list) and mapping[0].get("HostPort"):
+                available.append((c, mapping[0]["HostPort"]))
+        except Exception:
+            continue
+
+    if not available:
         print_tagged(
             "system",
             "bold yellow",
-            "No container available to run the echo script.",
+            "No containers with mapped 8080/tcp ports available.",
         )
         return
+
+    container_lines = ["Available containers:"]
+    for idx, (c, port) in enumerate(available):
+        name = getattr(c, "name", None) or getattr(c, "attrs", {}).get(
+            "Name", ""
+        ).lstrip("/")
+        status = getattr(c, "status", None) or getattr(c, "attrs", {}).get(
+            "State", {}
+        ).get("Status", "unknown")
+        container_lines.append(f"  [{idx}] {name} (status: {status}, port: {port})")
+    container_lines.append(f"Select container [0-{len(available)-1}]: ")
+    print_tagged("system", "bold cyan", "\n".join(container_lines))
+    while True:
+        try:
+            choice = console.input("[bold blue]user[/bold blue] ")
+            if choice.strip() == "":
+                idx = 0
+            else:
+                idx = int(choice)
+            if 0 <= idx < len(available):
+                target, host_port = available[idx]
+                print_tagged("system", "bold cyan", f"Selected container {idx}")
+                break
+        except (ValueError, IndexError):
+            print_tagged(
+                "system",
+                "bold yellow",
+                "Invalid selection. Please enter a valid index.",
+            )
+        except KeyboardInterrupt:
+            print_tagged("system", "bold yellow", "Selection cancelled.")
+            return
 
     # Ensure we have up-to-date container information and a mapped host port
     host_port = None
@@ -98,8 +144,8 @@ def interactive_console(target) -> None:
                     if command_message:
                         print_tagged("system", "bold cyan", command_message.rstrip())
                     if should_exit:
-                        return
-                    continue
+                        break
+                continue
 
             try:
                 resp = requests.post(
@@ -121,4 +167,4 @@ def interactive_console(target) -> None:
             print_tagged("container", "bold magenta", output)
 
     except KeyboardInterrupt:
-        print_tagged("system", "bold yellow", "Interrupted by user")
+        print_tagged("system", "bold yellow", "Console interrupted.")
