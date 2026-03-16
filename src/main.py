@@ -1,4 +1,6 @@
-from typing import Optional
+# File: main.py
+# Summary: Entry point that creates, starts, and manages partner containers and console lifecycle.
+
 import json
 import os
 from console import interactive_console, print_header

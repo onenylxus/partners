@@ -1,3 +1,6 @@
+# File: command.py
+# Summary: Handles slash commands for the interactive console.
+
 from typing import Optional, Tuple
 from pathlib import Path
 

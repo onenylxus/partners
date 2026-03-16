@@ -1,3 +1,6 @@
+# File: console.py
+# Summary: Runs the interactive terminal UI and forwards prompts to selected containers.
+
 from typing import Any
 import requests
 from command import handle_command

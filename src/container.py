@@ -1,3 +1,6 @@
+# File: container.py
+# Summary: Exposes a FastAPI service that processes user input with the OpenAI client.
+
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from openai import OpenAI
