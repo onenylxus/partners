@@ -5,7 +5,6 @@ from typing import Any
 import requests
 from command import handle_command
 from rich.console import Console
-from rich.panel import Panel
 from manager import list_containers
 
 # Rich console for colored prompts and output
@@ -40,7 +39,7 @@ def format_exec_result(result: Any) -> str:
     if isinstance(result, tuple) and len(result) == 2:
         _, output = result
     elif hasattr(result, "output"):
-        output = result.output
+        output = getattr(result, "output")
     else:
         output = result
 
@@ -53,83 +52,56 @@ def format_exec_result(result: Any) -> str:
     return "" if output is None else str(output)
 
 
-def interactive_console() -> None:
-    """Run an interactive loop that sends input to a selected container and prints output.
+def interactive_console(configured_entries: list[dict[str, str]]) -> None:
+    """Run an interactive loop with config-ordered coordinator routing."""
 
-    Prompts the user to select a container by port.
-    """
-    containers = list_containers()
-    # Build list of containers with mapped 8080/tcp ports
-    available = []
-    for c in containers:
-        try:
-            c.reload()
-            ports = getattr(c, "attrs", {}).get("NetworkSettings", {}).get("Ports", {})
-            mapping = ports.get("8080/tcp")
-            if mapping and isinstance(mapping, list) and mapping[0].get("HostPort"):
-                available.append((c, mapping[0]["HostPort"]))
-        except Exception:
-            continue
+    order = {entry.get("name", ""): idx for idx, entry in enumerate(configured_entries)}
+    briefs = {
+        entry.get("name", ""): entry.get("brief", "") for entry in configured_entries
+    }
 
-    if not available:
+    def build_running_nodes() -> list[dict[str, str]]:
+        containers = list_containers()
+        nodes = []
+        for c in containers:
+            try:
+                c.reload()
+                attrs = getattr(c, "attrs", {})
+                ports = attrs.get("NetworkSettings", {}).get("Ports", {})
+                mapping = ports.get("8080/tcp")
+                if (
+                    mapping
+                    and isinstance(mapping, list)
+                    and mapping[0].get("HostPort")
+                    and getattr(c, "status", "") == "running"
+                ):
+                    name = getattr(c, "name", None) or attrs.get("Name", "").lstrip("/")
+                    nodes.append(
+                        {
+                            "name": name,
+                            "host_port": mapping[0]["HostPort"],
+                            "brief": briefs.get(name, ""),
+                        }
+                    )
+            except Exception:
+                continue
+        if order:
+            nodes.sort(key=lambda n: order.get(n["name"], len(order)))
+        return nodes
+
+    initial_nodes = build_running_nodes()
+    if not initial_nodes:
         print_tagged(
             "system",
             "bold yellow",
-            "No containers with mapped 8080/tcp ports available.",
+            "No running containers with mapped 8080/tcp ports available.",
         )
         return
 
-    container_lines = ["Available containers:"]
-    for idx, (c, port) in enumerate(available):
-        name = getattr(c, "name", None) or getattr(c, "attrs", {}).get(
-            "Name", ""
-        ).lstrip("/")
-        status = getattr(c, "status", None) or getattr(c, "attrs", {}).get(
-            "State", {}
-        ).get("Status", "unknown")
-        container_lines.append(f"  [{idx}] {name} (status: {status}, port: {port})")
-    container_lines.append(f"Select container [0-{len(available)-1}]: ")
-    print_tagged("system", "bold cyan", "\n".join(container_lines))
-    while True:
-        try:
-            choice = console.input("[bold blue]user[/bold blue] ")
-            if choice.strip() == "":
-                idx = 0
-            else:
-                idx = int(choice)
-            if 0 <= idx < len(available):
-                target, host_port = available[idx]
-                print_tagged("system", "bold cyan", f"Selected container {idx}")
-                break
-        except (ValueError, IndexError):
-            print_tagged(
-                "system",
-                "bold yellow",
-                "Invalid selection. Please enter a valid index.",
-            )
-        except KeyboardInterrupt:
-            print_tagged("system", "bold yellow", "Selection cancelled.")
-            return
-
-    # Ensure we have up-to-date container information and a mapped host port
-    host_port = None
-    try:
-        # refresh attributes
-        target.reload()
-        ports = getattr(target, "attrs", {}).get("NetworkSettings", {}).get("Ports", {})
-        mapping = ports.get("8080/tcp")
-        if mapping and isinstance(mapping, list) and mapping[0].get("HostPort"):
-            host_port = mapping[0]["HostPort"]
-    except Exception:
-        host_port = None
-
-    if not host_port:
-        print_tagged(
-            "system",
-            "bold yellow",
-            "Target container has no 8080/tcp host port mapped. Ensure manager publishes the port.",
-        )
-        return
+    lines = ["Available containers:"]
+    for idx, node in enumerate(initial_nodes):
+        lines.append(f"  [{idx}] {node['name']} (port: {node['host_port']})")
+    print_tagged("system", "bold cyan", "\n".join(lines))
 
     try:
         while True:
@@ -150,10 +122,87 @@ def interactive_console() -> None:
                         break
                 continue
 
+            # Rebuild each time to keep runtime state and ports fresh.
+            nodes = build_running_nodes()
+            if not nodes:
+                print_tagged("system", "bold yellow", "No running containers available")
+                continue
+
+            if len(nodes) == 1:
+                target_node = nodes[0]
+                route_reason = "single container; routing skipped"
+                print_tagged(
+                    "system",
+                    "bold cyan",
+                    "Sending prompt",
+                )
+            else:
+                coordinator = nodes[0]
+                candidates = nodes[1:]
+                print_tagged(
+                    "system",
+                    "bold cyan",
+                    "Sending prompt to coordinator",
+                )
+
+                if not candidates:
+                    target_node = coordinator
+                    route_reason = "no secondary container found; using coordinator"
+                else:
+                    try:
+                        route_resp = requests.post(
+                            f"http://localhost:{coordinator['host_port']}/route",
+                            json={
+                                "input": user_input,
+                                "candidates": [
+                                    {
+                                        "name": n["name"],
+                                        "brief": n.get("brief", ""),
+                                    }
+                                    for n in candidates
+                                ],
+                            },
+                            timeout=60,
+                        )
+                        route_resp.raise_for_status()
+                        route_data = route_resp.json()
+                        target_name = str(route_data.get("target", "")).strip()
+                        route_reason = str(route_data.get("reason", "model-selected"))
+                        target_node = next(
+                            (n for n in candidates if n["name"] == target_name),
+                            candidates[0],
+                        )
+                    except Exception as exc:
+                        target_node = candidates[0]
+                        route_reason = (
+                            f"route request failed; fallback first candidate ({exc})"
+                        )
+
+            target_idx = next(
+                (i for i, n in enumerate(nodes) if n["name"] == target_node["name"]),
+                -1,
+            )
+            if len(nodes) > 1:
+                coordinator_idx = 0
+                coordinator_tag = f"[{coordinator_idx}] {coordinator['name']}"
+                print_tagged(
+                    coordinator_tag,
+                    "bold magenta",
+                    route_reason,
+                )
+                print_tagged(
+                    "system",
+                    "bold cyan",
+                    f"Prompt passed to [{target_idx}] {target_node['name']}",
+                )
+
             try:
                 resp = requests.post(
-                    f"http://localhost:{host_port}/exec",
-                    json={"input": user_input},
+                    f"http://localhost:{target_node['host_port']}/exec",
+                    json={
+                        "input": user_input,
+                        "system": target_node.get("brief", "") or None,
+                    },
                     timeout=60,
                 )
                 resp.raise_for_status()
@@ -167,7 +216,8 @@ def interactive_console() -> None:
             if output is None:
                 output = ""
             # Print label + content
-            print_tagged("container", "bold magenta", output)
+            tag = f"[{target_idx}] {target_node['name']}"
+            print_tagged(tag, "bold magenta", output)
 
     except KeyboardInterrupt:
         print_tagged("system", "bold yellow", "Console interrupted.")

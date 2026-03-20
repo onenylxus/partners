@@ -34,7 +34,10 @@ def create_container(name: str, model: str) -> bool:
         detach=True,
         ports={"8080/tcp": None},
         name=name,
-        environment={"OPENAI_MODEL": model, "CONTAINER_NAME": name},
+        environment={
+            "OPENAI_MODEL": model,
+            "CONTAINER_NAME": name,
+        },
     )
     return True
 

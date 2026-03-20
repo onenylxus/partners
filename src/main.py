@@ -28,20 +28,24 @@ if __name__ == "__main__":
     entries = load_containers_config(
         os.environ.get("CONTAINERS_CONFIG", "containers.json")
     )
+    configured_entries = []
     if entries:
         for entry in entries:
             name = entry.get("name", "default")
             model = entry.get("model", "")
+            brief = entry.get("brief", "")
+            configured_entries.append({"name": name, "brief": brief})
             create_container(name, model)
     else:
         # fallback to creating a single default container using env
+        configured_entries = [{"name": "default", "brief": ""}]
         create_container("default", "")
 
     start_all_containers()
 
     print_header("Partners", "0.1.0")
 
-    interactive_console()
+    interactive_console(configured_entries)
 
     stop_all_containers()
     remove_all_containers()

@@ -3,8 +3,24 @@
 
 from typing import Optional, Tuple
 from pathlib import Path
+import json
+import os
 
 from manager import list_containers
+
+
+def _configured_container_order() -> dict[str, int]:
+    """Return configured lowercase container name -> index order."""
+    config_path = os.environ.get("CONTAINERS_CONFIG", "containers.json")
+    try:
+        with open(config_path, "r") as f:
+            data = json.load(f)
+        entries = data.get("containers", []) if isinstance(data, dict) else []
+        names = [str(e.get("name", "")).strip() for e in entries if isinstance(e, dict)]
+        names = [n for n in names if n]
+        return {name.lower(): idx for idx, name in enumerate(names)}
+    except Exception:
+        return {}
 
 
 def _format_containers_list() -> str:
@@ -13,6 +29,21 @@ def _format_containers_list() -> str:
         containers = list_containers()
     except Exception as e:
         return f"Failed to list containers: {e}"
+
+    order = _configured_container_order()
+    if order:
+
+        def _container_name(c: object) -> str:
+            return (getattr(c, "name", None) or "") or getattr(c, "attrs", {}).get(
+                "Name", ""
+            ).lstrip("/")
+
+        containers.sort(
+            key=lambda c: (
+                order.get(_container_name(c).lower(), len(order)),
+                _container_name(c).lower(),
+            )
+        )
 
     # Build rows of data
     rows = []

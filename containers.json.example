@@ -2,8 +2,13 @@
 	"version": 1,
 	"containers": [
 		{
-			"name": "(your container name)",
+			"name": "(coordinator container name)",
 			"model": "(default AI model)"
+		},
+		{
+			"name": "(worker container name)",
+			"model": "(default AI model)",
+			"brief": "(short capability summary used as system instruction)"
 		}
 	]
 }

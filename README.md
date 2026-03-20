@@ -60,11 +60,27 @@ Example format:
 {
 	"version": 1,
 	"containers": [
-		{ "name": "research", "model": "gpt-4.1-mini" },
-		{ "name": "coding", "model": "gpt-4.1" }
+		{ "name": "router", "model": "gpt-4.1-mini" },
+		{
+			"name": "research",
+			"model": "gpt-4.1-mini",
+			"brief": "Literature review, references, and fact-checking"
+		},
+		{
+			"name": "coding",
+			"model": "gpt-4.1",
+			"brief": "Code implementation, debugging, and refactoring"
+		}
 	]
 }
 ```
+
+Notes:
+
+- If multiple containers exist, the first container in config is the coordinator and the rest are candidates.
+- If only one container is configured, routing is skipped.
+- `brief` is optional and intended for non-coordinator containers.
+- When a target container has `brief`, it is sent as a system message before the user prompt.
 
 ## Usage
 
@@ -88,8 +104,9 @@ After startup:
 
 1. Containers from containers.json are created and started.
 2. You are shown available containers with mapped host ports.
-3. Select a container index (or press Enter for 0).
-4. Enter prompts to send to that container's HTTP endpoint.
+3. Enter prompts in the CLI.
+4. If multiple containers are running, the first configured container decides which other container should handle each prompt.
+5. If only one container exists, prompt routing is skipped and prompts go directly to that container.
 
 Supported slash commands:
 
@@ -123,8 +140,9 @@ The project has two runtimes:
 
 - src/console.py
   - Interactive terminal loop with rich output.
-  - Lets user pick a target container.
-  - Sends prompts to POST /exec on the selected container.
+  - Calls the first configured container /route when multiple containers are available.
+  - Sends prompts to POST /exec on the chosen target (or direct target in single mode).
+  - Passes target `brief` as system message when available.
 
 - src/command.py
   - Handles slash-prefixed console commands.
@@ -134,12 +152,15 @@ The project has two runtimes:
   - FastAPI app running inside each container.
   - Exposes:
     - GET /health for health checks.
-    - POST /exec for prompt processing.
+    - POST /exec for prompt processing (supports optional system message).
+    - POST /route for master routing decisions.
   - Uses OPENAI_API_KEY, OPENAI_BASE_URL, and OPENAI_MODEL.
 
 ### Request path
 
 1. User enters prompt in console.
-2. Host sends HTTP POST to selected container at localhost:<mapped_port>/exec.
-3. Container calls OpenAI chat completions API.
-4. Response text is returned to host and displayed in console.
+2. If multiple containers are running, host sends prompt + candidate names to the first configured container /route.
+3. Coordinator selects the target container.
+4. Host sends HTTP POST to selected target at localhost:<mapped_port>/exec.
+5. Container calls OpenAI chat completions API.
+6. Response text is returned to host and displayed in console.
