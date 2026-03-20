@@ -5,8 +5,23 @@ from typing import Optional, Tuple
 from pathlib import Path
 import json
 import os
+import requests
 
 from manager import list_containers
+
+
+def is_container_healthy(host_port: str, timeout: float = 2.0) -> bool:
+    """Return True when container /health responds successfully."""
+    if not host_port:
+        return False
+    try:
+        resp = requests.get(f"http://localhost:{host_port}/health", timeout=timeout)
+        if resp.status_code != 200:
+            return False
+        data = resp.json()
+        return isinstance(data, dict) and data.get("status") == "ok"
+    except Exception:
+        return False
 
 
 def _configured_container_order() -> dict[str, int]:
@@ -60,7 +75,6 @@ def _format_containers_list() -> str:
         status_raw = getattr(c, "status", None) or getattr(c, "attrs", {}).get(
             "State", {}
         ).get("Status")
-        status = "active" if status_raw == "running" else "inactive"
 
         ports = getattr(c, "attrs", {}).get("NetworkSettings", {}).get("Ports", {})
         mapping = None
@@ -75,6 +89,10 @@ def _format_containers_list() -> str:
             and mapping[0].get("HostPort")
         ):
             host_port = mapping[0]["HostPort"]
+
+        status = "inactive"
+        if status_raw == "running" and host_port and is_container_healthy(host_port):
+            status = "active"
 
         port_text = host_port if host_port else "N/A"
 

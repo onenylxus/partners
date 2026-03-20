@@ -3,12 +3,26 @@
 
 from typing import Any
 import requests
-from command import handle_command
+from command import handle_command, is_container_healthy
 from rich.console import Console
+from rich.live import Live
+from rich.spinner import Spinner
 from manager import list_containers
 
 # Rich console for colored prompts and output
 console = Console()
+
+
+def request_with_loading(method: str, url: str, **kwargs: Any) -> requests.Response:
+    """Make HTTP request with a loading animation spinner."""
+    spinner = Spinner("dots", text="Waiting for response...")
+    with Live(spinner, console=console, refresh_per_second=12.5):
+        if method.lower() == "post":
+            return requests.post(url, **kwargs)
+        elif method.lower() == "get":
+            return requests.get(url, **kwargs)
+        else:
+            raise ValueError(f"Unsupported method: {method}")
 
 
 def print_tagged(tag: str, style: str, message: str) -> None:
@@ -127,9 +141,20 @@ def interactive_console(configured_entries: list[dict[str, str]]) -> None:
             if not nodes:
                 print_tagged("system", "bold yellow", "No running containers available")
                 continue
+            active_nodes = [
+                n for n in nodes if is_container_healthy(n["host_port"], timeout=2.0)
+            ]
+            if not active_nodes:
+                names = ", ".join(n["name"] for n in nodes)
+                print_tagged(
+                    "system",
+                    "bold yellow",
+                    f"All running containers are unhealthy or unreachable: {names}",
+                )
+                continue
 
-            if len(nodes) == 1:
-                target_node = nodes[0]
+            if len(active_nodes) == 1:
+                target_node = active_nodes[0]
                 route_reason = "single container; routing skipped"
                 print_tagged(
                     "system",
@@ -137,8 +162,8 @@ def interactive_console(configured_entries: list[dict[str, str]]) -> None:
                     "Sending prompt",
                 )
             else:
-                coordinator = nodes[0]
-                candidates = nodes[1:]
+                coordinator = active_nodes[0]
+                candidates = active_nodes[1:]
                 print_tagged(
                     "system",
                     "bold cyan",
@@ -150,7 +175,8 @@ def interactive_console(configured_entries: list[dict[str, str]]) -> None:
                     route_reason = "no secondary container found; using coordinator"
                 else:
                     try:
-                        route_resp = requests.post(
+                        route_resp = request_with_loading(
+                            "post",
                             f"http://localhost:{coordinator['host_port']}/route",
                             json={
                                 "input": user_input,
@@ -182,9 +208,9 @@ def interactive_console(configured_entries: list[dict[str, str]]) -> None:
                 (i for i, n in enumerate(nodes) if n["name"] == target_node["name"]),
                 -1,
             )
-            if len(nodes) > 1:
+            if len(active_nodes) > 1:
                 coordinator_idx = 0
-                coordinator_tag = f"[{coordinator_idx}] {coordinator['name']}"
+                coordinator_tag = f"[{coordinator_idx}] {active_nodes[0]['name']}"
                 print_tagged(
                     coordinator_tag,
                     "bold magenta",
@@ -196,27 +222,68 @@ def interactive_console(configured_entries: list[dict[str, str]]) -> None:
                     f"Prompt passed to [{target_idx}] {target_node['name']}",
                 )
 
-            try:
-                resp = requests.post(
-                    f"http://localhost:{target_node['host_port']}/exec",
-                    json={
-                        "input": user_input,
-                        "system": target_node.get("brief", "") or None,
-                    },
-                    timeout=60,
+            fallback_targets = [
+                n for n in active_nodes if n["name"] != target_node["name"]
+            ]
+            request_targets = [target_node] + fallback_targets
+
+            output = None
+            response_node = None
+            last_error = None
+            for attempt_node in request_targets:
+                try:
+                    resp = request_with_loading(
+                        "post",
+                        f"http://localhost:{attempt_node['host_port']}/exec",
+                        json={
+                            "input": user_input,
+                            "system": attempt_node.get("brief", "") or None,
+                        },
+                        timeout=60,
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    output = data.get("output", "")
+                    response_node = attempt_node
+                    if attempt_node["name"] != target_node["name"]:
+                        print_tagged(
+                            "system",
+                            "bold cyan",
+                            f"Using fallback container [{next((i for i, n in enumerate(nodes) if n['name'] == attempt_node['name']), -1)}] {attempt_node['name']}",
+                        )
+                    break
+                except Exception as exc:
+                    last_error = exc
+                    if isinstance(exc, requests.Timeout):
+                        print_tagged(
+                            "system",
+                            "bold yellow",
+                            f"Timeout from [{next((i for i, n in enumerate(nodes) if n['name'] == attempt_node['name']), -1)}] {attempt_node['name']}; trying next container.",
+                        )
+                        continue
+                    print_tagged(
+                        "system",
+                        "bold yellow",
+                        f"HTTP request failed for {attempt_node['name']}: {exc}",
+                    )
+
+            if output is None or response_node is None:
+                print_tagged(
+                    "system",
+                    "bold yellow",
+                    f"No container produced a response. Last error: {last_error}",
                 )
-                resp.raise_for_status()
-                data = resp.json()
-                output = data.get("output", "")
-            except Exception as exc:
-                print_tagged("system", "bold yellow", f"HTTP request failed: {exc}")
-                break
+                continue
 
             # Prefix container output with a styled label. Preserve multiline output.
             if output is None:
                 output = ""
             # Print label + content
-            tag = f"[{target_idx}] {target_node['name']}"
+            response_idx = next(
+                (i for i, n in enumerate(nodes) if n["name"] == response_node["name"]),
+                -1,
+            )
+            tag = f"[{response_idx}] {response_node['name']}"
             print_tagged(tag, "bold magenta", output)
 
     except KeyboardInterrupt:
