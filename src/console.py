@@ -2,6 +2,9 @@
 # Summary: Runs the interactive terminal UI and forwards prompts to selected containers.
 
 from typing import Any
+import os
+from datetime import datetime
+from pathlib import Path
 import requests
 from command import handle_command, is_container_healthy
 from rich.console import Console
@@ -11,6 +14,24 @@ from manager import list_containers
 
 # Rich console for colored prompts and output
 console = Console()
+LOG_FILE = Path(os.environ["LOG_FILE"])
+
+if not LOG_FILE.is_file():
+    raise FileNotFoundError(f"LOG_FILE does not exist or is not a file: {LOG_FILE}")
+
+
+def append_cli_log(tag: str, message: str) -> None:
+    """Append CLI output to a log file without affecting console flow."""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    text = "" if message is None else str(message)
+    lines = text.splitlines() or [""]
+    payload = "\n".join(f"[{timestamp}] {tag} {line}" for line in lines)
+    try:
+        with LOG_FILE.open("a", encoding="utf-8") as log_file:
+            log_file.write(payload + "\n")
+    except OSError:
+        # Logging failures should never break interactive output.
+        pass
 
 
 def request_with_loading(method: str, url: str, **kwargs: Any) -> requests.Response:
@@ -39,6 +60,7 @@ def print_tagged(tag: str, style: str, message: str) -> None:
         formatted = lines[0] + "\n" + "\n".join(f"{indent}{line}" for line in lines[1:])
 
     console.print(f"[{style}]{tag}[/{style}] {formatted}", highlight=False)
+    append_cli_log(tag, formatted)
 
 
 def print_header(app_name: str, version: str) -> None:

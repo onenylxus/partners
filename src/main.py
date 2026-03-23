@@ -7,7 +7,6 @@ from console import interactive_console, print_header
 
 from manager import (
     create_container,
-    list_containers,
     start_all_containers,
     stop_all_containers,
     remove_all_containers,

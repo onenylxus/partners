@@ -1,5 +1,14 @@
 #!/bin/bash
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+LOG_DIR="$SCRIPT_DIR/logs"
+TIMESTAMP="$(date +"%Y%m%d_%H%M%S")"
+LOG_FILE="$LOG_DIR/$TIMESTAMP.log"
+export LOG_FILE
+
+mkdir -p "$LOG_DIR"
+touch "$LOG_FILE"
+
 # Check if Python 3 is installed
 if ! which python3 > /dev/null; then
   echo "Error: Python 3 is not installed"
