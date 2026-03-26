@@ -1,15 +1,17 @@
 # File: console.py
 # Summary: Runs the interactive terminal UI and forwards prompts to selected containers.
 
-from typing import Any
-import os
 from datetime import datetime
 from pathlib import Path
+from typing import Any
+import os
+
 import requests
-from command import handle_command, is_container_healthy
 from rich.console import Console
 from rich.live import Live
 from rich.spinner import Spinner
+
+from command import handle_command, is_container_healthy
 from manager import list_containers
 
 # Rich console for colored prompts and output
@@ -37,7 +39,7 @@ def append_cli_log(tag: str, message: str) -> None:
 def request_with_loading(method: str, url: str, **kwargs: Any) -> requests.Response:
     """Make HTTP request with a loading animation spinner."""
     spinner = Spinner("dots", text="Waiting for response...")
-    with Live(spinner, console=console, refresh_per_second=12.5):
+    with Live(spinner, console=console, refresh_per_second=12.5, transient=True):
         if method.lower() == "post":
             return requests.post(url, **kwargs)
         elif method.lower() == "get":
@@ -139,6 +141,7 @@ def interactive_console(configured_entries: list[dict[str, str]]) -> None:
         lines.append(f"  [{idx}] {node['name']} (port: {node['host_port']})")
     print_tagged("system", "bold cyan", "\n".join(lines))
 
+    user_input = None
     try:
         while True:
             try:
@@ -308,5 +311,11 @@ def interactive_console(configured_entries: list[dict[str, str]]) -> None:
             tag = f"[{response_idx}] {response_node['name']}"
             print_tagged(tag, "bold magenta", output)
 
+            # Clear user input
+            user_input = None
+
     except KeyboardInterrupt:
-        print_tagged("system", "bold yellow", "Console interrupted.")
+        # Move to a new line after ^C if in interactive mode
+        if user_input is None:
+            print()
+        print_tagged("system", "bold red", "Error: Console interrupted.")

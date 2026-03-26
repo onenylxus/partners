@@ -1,10 +1,11 @@
 # File: command.py
 # Summary: Handles slash commands for the interactive console.
 
-from typing import Optional, Tuple
-from pathlib import Path
 import json
 import os
+from pathlib import Path
+from typing import Optional, Tuple
+
 import requests
 
 from manager import list_containers

@@ -3,13 +3,13 @@
 
 import json
 import os
-from console import interactive_console, print_header
 
+from console import interactive_console, print_header
 from manager import (
     create_container,
+    remove_all_containers,
     start_all_containers,
     stop_all_containers,
-    remove_all_containers,
 )
 
 
